@@ -1,12 +1,14 @@
+```python
 import streamlit as st
 import requests
 import base64
-import os
+import time
 from PIL import Image
 
-# -----------------------------
-# Page Configuration
-# -----------------------------
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
+
 st.set_page_config(
     page_title="Sales Data Analyser",
     page_icon="📊",
@@ -16,27 +18,57 @@ st.set_page_config(
 st.title("📊 Sales Data Analyser")
 st.write("Upload a sales data image and get AI-powered insights.")
 
-# -----------------------------
-# Gemini API Configuration
-# -----------------------------
-GOOGLE_API_KEY = os.environ.get("GEMINI_KEY")
 
-if not GOOGLE_API_KEY:
-    st.error("GEMINI_KEY is not available.")
+# ============================================================
+# GEMINI API KEY
+# ============================================================
+
+# IMPORTANT:
+# Streamlit Cloud:
+# Settings → Secrets
+#
+# Add:
+# GEMINI_KEY = "YOUR_API_KEY"
+
+try:
+    GOOGLE_API_KEY = st.secrets["GEMINI_KEY"]
+except Exception:
+    st.error("GEMINI_KEY is missing from Streamlit Secrets.")
+    st.info("Go to Streamlit Cloud → Manage app → Settings → Secrets")
     st.stop()
 
-API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    "models/gemini-3.5-flash-lite:generateContent"
-)
 
-# -----------------------------
-# Image Upload
-# -----------------------------
+# ============================================================
+# GEMINI MODELS
+# ============================================================
+
+# First model
+PRIMARY_MODEL = "gemini-3.5-flash-lite"
+
+# Backup model
+BACKUP_MODEL = "gemini-3.1-flash-lite"
+
+
+def get_api_url(model):
+    return (
+        "https://generativelanguage.googleapis.com/v1beta/"
+        f"models/{model}:generateContent"
+    )
+
+
+# ============================================================
+# IMAGE UPLOAD
+# ============================================================
+
 uploaded_file = st.file_uploader(
-    "Upload an Image",
+    "Upload a Sales Data Image",
     type=["jpg", "jpeg", "png"]
 )
+
+
+# ============================================================
+# ANALYZE IMAGE
+# ============================================================
 
 if uploaded_file is not None:
 
@@ -47,19 +79,20 @@ if uploaded_file is not None:
     with col1:
         st.image(
             image,
-            caption="Uploaded Image",
+            caption="Uploaded Sales Data",
             use_container_width=True
         )
 
     with col2:
 
-        if st.button("Analyze Image"):
+        if st.button("🔍 Analyze Image"):
 
             with st.spinner("Analyzing sales data..."):
 
-                # -----------------------------
-                # Read Image
-                # -----------------------------
+                # ====================================================
+                # READ IMAGE
+                # ====================================================
+
                 uploaded_file.seek(0)
                 image_bytes = uploaded_file.read()
 
@@ -69,16 +102,20 @@ if uploaded_file is not None:
 
                 mime_type = uploaded_file.type or "image/jpeg"
 
-                # -----------------------------
-                # Prompt
-                # -----------------------------
+
+                # ====================================================
+                # PROMPT
+                # ====================================================
+
                 prompt = """
 You are an AI Sales Data Analysis Assistant.
 
-Analyze the uploaded sales data image carefully and provide clear
-and useful business insights.
+Analyze the uploaded sales data image carefully.
 
-Analyze the following whenever the information is available:
+Use ONLY information visible in the uploaded image.
+Do not invent values.
+
+Analyze the following whenever information is available:
 
 1. DATASET OVERVIEW
 - Number of records
@@ -226,14 +263,17 @@ Provide findings if available.
 IMPORTANT:
 - Use only information visible in the uploaded image.
 - Do not invent values.
-- If information is unavailable, say "Not available in the dataset."
+- If information is unavailable, say:
+  "Not available in the dataset."
 - Clearly distinguish facts from interpretations.
 - Do not claim correlation proves causation.
 """
 
-                # -----------------------------
-                # API Payload
-                # -----------------------------
+
+                # ====================================================
+                # PAYLOAD
+                # ====================================================
+
                 payload = {
                     "contents": [
                         {
@@ -252,78 +292,178 @@ IMPORTANT:
                     ]
                 }
 
-                # -----------------------------
-                # API Headers
-                # -----------------------------
+
+                # ====================================================
+                # HEADERS
+                # ====================================================
+
                 headers = {
                     "Content-Type": "application/json",
                     "x-goog-api-key": GOOGLE_API_KEY
                 }
 
-                # -----------------------------
-                # API Request
-                # -----------------------------
-                try:
 
-                    response = requests.post(
-                        API_URL,
+                # ====================================================
+                # FUNCTION TO CALL GEMINI
+                # ====================================================
+
+                def call_gemini(model):
+
+                    url = get_api_url(model)
+
+                    return requests.post(
+                        url,
                         headers=headers,
                         json=payload,
                         timeout=120
                     )
 
+
+                # ====================================================
+                # TRY PRIMARY MODEL
+                # ====================================================
+
+                response = None
+
+                try:
+
+                    response = call_gemini(PRIMARY_MODEL)
+
+                    # If Gemini is temporarily overloaded,
+                    # wait and retry once.
+                    if response.status_code == 503:
+
+                        st.warning(
+                            "Gemini is temporarily busy. Retrying..."
+                        )
+
+                        time.sleep(3)
+
+                        response = call_gemini(PRIMARY_MODEL)
+
+
+                    # =================================================
+                    # BACKUP MODEL
+                    # =================================================
+
+                    if response.status_code == 503:
+
+                        st.warning(
+                            "Primary model is busy. "
+                            "Trying backup model..."
+                        )
+
+                        response = call_gemini(BACKUP_MODEL)
+
+
+                    # =================================================
+                    # ERROR HANDLING
+                    # =================================================
+
                     if response.status_code != 200:
+
                         st.error(
                             f"Gemini API Error: {response.status_code}"
                         )
+
                         st.code(response.text)
+
                         st.stop()
 
-                    # -----------------------------
-                    # Parse Response
-                    # -----------------------------
+
+                    # =================================================
+                    # PARSE RESPONSE
+                    # =================================================
+
                     result = response.json()
 
-                    candidates = result.get("candidates", [])
+                    candidates = result.get(
+                        "candidates",
+                        []
+                    )
 
                     if not candidates:
-                        st.error("Gemini returned no result.")
+
+                        st.error(
+                            "Gemini returned no result."
+                        )
+
                         st.json(result)
+
                         st.stop()
 
-                    parts = candidates[0].get(
-                        "content", {}
-                    ).get("parts", [])
+
+                    content = candidates[0].get(
+                        "content",
+                        {}
+                    )
+
+                    parts = content.get(
+                        "parts",
+                        []
+                    )
 
                     analysis = ""
 
                     for part in parts:
+
                         if "text" in part:
+
                             analysis += part["text"]
 
+
                     if not analysis:
-                        st.error("No analysis was returned.")
+
+                        st.error(
+                            "No analysis was returned."
+                        )
+
                         st.json(result)
+
                         st.stop()
 
-                    # -----------------------------
-                    # Display Result
-                    # -----------------------------
-                    st.subheader("📊 Analysis Result")
-                    st.markdown(analysis)
 
-                except requests.exceptions.Timeout:
-                    st.error(
-                        "The request timed out. Please try again."
+                    # =================================================
+                    # DISPLAY RESULT
+                    # =================================================
+
+                    st.success("Analysis completed successfully!")
+
+                    st.subheader(
+                        "📊 Analysis Result"
                     )
 
+                    st.markdown(analysis)
+
+
+                # ====================================================
+                # TIMEOUT
+                # ====================================================
+
+                except requests.exceptions.Timeout:
+
+                    st.error(
+                        "Request timed out. Please try again."
+                    )
+
+
+                # ====================================================
+                # CONNECTION ERROR
+                # ====================================================
+
                 except requests.exceptions.RequestException as e:
+
                     st.error(
                         f"Connection error: {e}"
                     )
 
+
+                # ====================================================
+                # OTHER ERROR
+                # ====================================================
+
                 except Exception as e:
+
                     st.error(
                         f"Unexpected error: {e}"
                     )
-                               
