@@ -1,33 +1,27 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from PIL import Image
 
 # -----------------------------
 # Page Configuration
 # -----------------------------
 st.set_page_config(
-    page_title="Sales Data Analysis",
-    page_icon="📈",
+    page_title="Sales Data Analyser",
+    page_icon="📊",
     layout="wide"
 )
 
-st.title("📊 Sales Data Analyzer")
-st.write("Upload a image and get insights using Gemini-3.5-Flash-lite")
+st.title("📊 Sales Data Analyser")
+st.write("Upload a image and get insights using Gemini 3.5 Flash-lite.")
 
 # -----------------------------
 # Gemini API Configuration
 # -----------------------------
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
-client = genai.Client(api_key=GOOGLE_API_KEY)
+genai.configure(api_key=GOOGLE_API_KEY)
 
-response = client.models.generate_content(
-    model="gemini-3.5-flash-lite",
-    contents=[
-        "Analyze this sales image and provide useful sales insights.",
-        image
-    ]
-)
+model = genai.GenerativeModel("gemini-3.5-flash-lite")
 
 # -----------------------------
 # Image Upload
@@ -81,7 +75,7 @@ if uploaded_file is not None:
                 - Lowest-value transaction
 
                 3. PRODUCT ANALYSIS
-                 Identify:
+                Identify:
                 - Best-selling products by quantity
                 - Highest-revenue products
                 - Lowest-performing products
@@ -157,8 +151,8 @@ if uploaded_file is not None:
                 ## 📊 Sales Data Overview
 
                 | Metric | Value |
-                | ---|---:|
-                |Number of Records | |
+                |---|---:|
+                | Number of Records | |
                 | Number of Columns | |
                 | Total Revenue | |
                 | Total Quantity Sold | |
@@ -166,7 +160,6 @@ if uploaded_file is not None:
                 | Number of Transactions | |
 
                 ## 🏆 Product Performance
-
                 | Product/Category | Quantity Sold | Revenue | Observation |
                 |---|---:|---:|---|
 
@@ -188,7 +181,7 @@ if uploaded_file is not None:
                 ...
 
                 ## 📈 Important Trends
-                - ... 
+                - ...
                 - ...
                 - ...
 
@@ -200,13 +193,13 @@ if uploaded_file is not None:
                 5. ...
 
                 ## 💡 Recommendations
-                1. ... 
+                1. ...
                 2. ...
                 3. ...
                 4. ...
                 5. ...
 
-                ## 📋 Management Summary 
+                ## 📋 Management Summary
                 ...
 
                 IMPORTANT:
