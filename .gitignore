@@ -1,0 +1,17 @@
+﻿# Python virtual environment
+Lib/
+Scripts/
+etc/
+share/
+pyvenv.cfg
+
+# Streamlit secrets
+.streamlit/secrets.toml
+secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment files
+.env
