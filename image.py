@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 
 # -----------------------------
@@ -17,11 +17,17 @@ st.write("Upload a image and get insights using Gemini-3.5-Flash-lite")
 # -----------------------------
 # Gemini API Configuration
 # -----------------------------
-GOOGLE_API_KEY = "AQ.Ab8RN6KFPPeMK-pTYbLM7l2jjfoLOEOENB6LUd1z6CY01_t4-A"
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
-genai.configure(api_key=GOOGLE_API_KEY)
+client = genai.Client(api_key=GOOGLE_API_KEY)
 
-model = genai.GenerativeModel("gemini-3.5-flash-lite")  
+response = client.models.generate_content(
+    model="gemini-3.5-flash-lite",
+    contents=[
+        "Analyze this sales image and provide useful sales insights.",
+        image
+    ]
+)
 
 # -----------------------------
 # Image Upload
