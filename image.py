@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 
 # -----------------------------
@@ -19,9 +19,7 @@ st.write("Upload a image and get insights using Gemini 3.5 Flash-lite.")
 # -----------------------------
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
-genai.configure(api_key=GOOGLE_API_KEY)
-
-model = genai.GenerativeModel("gemini-3.5-flash-lite")
+client = genai.Client(api_key=GOOGLE_API_KEY)
 
 # -----------------------------
 # Image Upload
@@ -211,8 +209,9 @@ if uploaded_file is not None:
                 - Clearly identify any assumptions used in calculations.
                 """
 
-                response = model.generate_content(
-                    [prompt, image]
+                response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=[prompt, image]
                 )
 
                 st.subheader("Analysis Result")
