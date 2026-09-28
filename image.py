@@ -1,5 +1,7 @@
 import streamlit as st
-from google import genai
+import requests
+import base64
+import os
 from PIL import Image
 
 # -----------------------------
@@ -12,26 +14,30 @@ st.set_page_config(
 )
 
 st.title("📊 Sales Data Analyser")
-st.write("Upload a image and get insights using Gemini 3.5 Flash-lite.")
+st.write("Upload a sales data image and get AI-powered insights.")
 
 # -----------------------------
 # Gemini API Configuration
 # -----------------------------
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+GOOGLE_API_KEY = os.environ.get("GEMINI_KEY")
 
-client = genai.Client(api_key=GOOGLE_API_KEY)
+if not GOOGLE_API_KEY:
+    st.error("GEMINI_KEY is not available.")
+    st.stop()
+
+API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/"
+    "models/gemini-3.5-flash-lite:generateContent"
+)
 
 # -----------------------------
 # Image Upload
 # -----------------------------
 uploaded_file = st.file_uploader(
-    "Upload a Image",
+    "Upload an Image",
     type=["jpg", "jpeg", "png"]
 )
 
-# -----------------------------
-# Analyze Button
-# -----------------------------
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file)
@@ -39,180 +45,285 @@ if uploaded_file is not None:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.image(image, caption="Uploaded Image", use_container_width=True)
+        st.image(
+            image,
+            caption="Uploaded Image",
+            use_container_width=True
+        )
 
     with col2:
 
         if st.button("Analyze Image"):
 
-            with st.spinner("Analyzing image..."):
+            with st.spinner("Analyzing sales data..."):
 
+                # -----------------------------
+                # Read Image
+                # -----------------------------
+                uploaded_file.seek(0)
+                image_bytes = uploaded_file.read()
+
+                image_base64 = base64.b64encode(
+                    image_bytes
+                ).decode("utf-8")
+
+                mime_type = uploaded_file.type or "image/jpeg"
+
+                # -----------------------------
+                # Prompt
+                # -----------------------------
                 prompt = """
-                You are an AI Sales Data Analysis Assistant.
+You are an AI Sales Data Analysis Assistant.
 
-                Analyze the uploaded sales data file carefully. The data may contain information such as product names, categories, quantities sold, selling prices, revenue, dates, customers, regions, sales representatives, discounts, or other business-related fields.
+Analyze the uploaded sales data image carefully and provide clear
+and useful business insights.
 
-                Your objective is to transform raw sales data into clear and useful business insights.
+Analyze the following whenever the information is available:
 
-                Perform the following analysis:
+1. DATASET OVERVIEW
+- Number of records
+- Number of columns
+- Important fields
+- Missing or inconsistent values
 
-                1. DATASET OVERVIEW
-                - Identify the number of records and columns, if available.
-                - Identify the fields/columns present.
-                - Explain briefly what each important column represents.
-                - Identify missing, incomplete, or inconsistent values.
+2. SALES PERFORMANCE
+- Total revenue
+- Total quantity sold
+- Average transaction value
+- Average selling price
+- Number of transactions
+- Highest-value transaction
+- Lowest-value transaction
 
-                2. SALES PERFORMANCE
-                Calculate or analyze, where the required data is available:
-                - Total sales/revenue
-                - Total quantity sold
-                - Average sales per transaction
-                - Average selling price
-                - Number of transactions
-                - Highest-value transaction
-                - Lowest-value transaction
+3. PRODUCT ANALYSIS
+- Best-selling products
+- Highest-revenue products
+- Lowest-performing products
+- Top product categories
 
-                3. PRODUCT ANALYSIS
-                Identify:
-                - Best-selling products by quantity
-                - Highest-revenue products
-                - Lowest-performing products
-                - Products with unusually high or low sales
-                - Product categories contributing the most revenue
+4. TIME-BASED ANALYSIS
+If dates are available:
+- Daily sales
+- Weekly sales
+- Monthly sales
+- Sales growth or decline
+- Peak sales periods
+- Low-sales periods
 
-                4. TIME-BASED ANALYSIS
-                If dates are available, analyze:
-                - Daily sales
-                - Weekly sales
-                - Monthly sales
-                - Quarterly sales
-                - Sales growth or decline over time
-                - Peak sales periods
-                - Low-sales periods
+5. CUSTOMER ANALYSIS
+If customer information is available:
+- Major customers
+- Purchase frequency
+- Important customers by revenue
 
-                5. CUSTOMER ANALYSIS
-                If customer information is available:
-                - Identify major customers by revenue
-                - Identify customers with the highest purchase frequency
-                - Identify customers contributing significantly to total sales
-                - Identify unusual purchasing patterns
+6. REGIONAL ANALYSIS
+If regional information is available:
+- Highest-performing regions
+- Lowest-performing regions
+- Regional differences
 
-                6. REGIONAL ANALYSIS
-                If location information is available:
-                - Compare sales across regions
-                - Identify highest-performing regions
-                - Identify low-performing regions
-                - Explain important regional differences
+7. SALES REPRESENTATIVE ANALYSIS
+If salesperson information is available:
+- Revenue by salesperson
+- Quantity sold
+- Performance differences
 
-                7. SALES REPRESENTATIVE ANALYSIS
-                If salesperson information is available:
-                - Compare sales representatives based on revenue
-                - Compare quantity sold
-                - Identify significant differences in performance
-                - Do not assume the reason for performance differences without evidence.
+8. DISCOUNT ANALYSIS
+If discount information is available:
+- Discount patterns
+- Products with large discounts
+- Relationship between discounts and sales
 
-                8. DISCOUNT ANALYSIS
-                If discount information is available:
-                - Analyze the relationship between discounts and sales.
-                - Identify products or categories receiving large discounts.
-                - Identify whether high-discount transactions appear to generate higher sales.
-                - Clearly distinguish correlation from causation.
+9. TREND ANALYSIS
+Identify:
+- Increasing trends
+- Decreasing trends
+- Seasonal patterns
+- Sudden changes
+- Possible outliers
 
-                9. TREND ANALYSIS
-                Identify:
-                - Increasing trends
-                - Decreasing trends
-                - Seasonal patterns
-                - Sudden changes
-                - Unusual values or possible outliers
+10. BUSINESS INSIGHTS
+Give practical insights based strictly on the data.
 
-                10. BUSINESS INSIGHTS
-                Provide practical insights based strictly on the data.
+11. RECOMMENDATIONS
+Give practical recommendations for:
+- Inventory
+- Products
+- Pricing
+- Sales strategy
+- Customers
+- Regions
+- Discounts
 
-                11. RECOMMENDATIONS
-                Suggest possible actions such as:
-                - Inventory planning
-                - Product promotion
-                - Pricing review
-                - Sales strategy
-                - Customer targeting
-                - Regional focus
-                - Discount strategy
+12. MANAGEMENT SUMMARY
+Give a short final summary.
 
-                Recommendations must be based on observed data and should not be presented as guaranteed outcomes.
+OUTPUT FORMAT:
 
-                12. MANAGEMENT SUMMARY
-                End with a concise summary of the most important findings.
+## 📊 Sales Data Overview
 
-                OUTPUT FORMAT:
+| Metric | Value |
+|---|---:|
+| Number of Records | |
+| Number of Columns | |
+| Total Revenue | |
+| Total Quantity Sold | |
+| Average Transaction Value | |
+| Number of Transactions | |
 
-                ## 📊 Sales Data Overview
+## 🏆 Product Performance
 
-                | Metric | Value |
-                |---|---:|
-                | Number of Records | |
-                | Number of Columns | |
-                | Total Revenue | |
-                | Total Quantity Sold | |
-                | Average Transaction Value | |
-                | Number of Transactions | |
+| Product/Category | Quantity Sold | Revenue | Observation |
+|---|---:|---:|---|
 
-                ## 🏆 Product Performance
-                | Product/Category | Quantity Sold | Revenue | Observation |
-                |---|---:|---:|---|
+## 📅 Time-Based Performance
 
-                ## 📅 Time-Based Performance
+| Period | Sales | Growth/Decline |
+|---|---:|---:|
 
-                | Period | Sales | Growth/Decline |
-                |---|---:|---:|
+## 👥 Customer Analysis
 
-                ## 👥 Customer Analysis
-                ...
+Provide findings if available.
 
-                ## 🌍 Regional Analysis
-                ...
+## 🌍 Regional Analysis
 
-                ## 👨‍💼 Sales Representative Analysis
-                ...
+Provide findings if available.
 
-                ## 💰 Discount Analysis
-                ...
+## 👨‍💼 Sales Representative Analysis
 
-                ## 📈 Important Trends
-                - ...
-                - ...
-                - ...
+Provide findings if available.
 
-                ## 🔎 Key Business Insights
-                1. ...
-                2. ...
-                3. ...
-                4. ...
-                5. ...
+## 💰 Discount Analysis
 
-                ## 💡 Recommendations
-                1. ...
-                2. ...
-                3. ...
-                4. ...
-                5. ...
+Provide findings if available.
 
-                ## 📋 Management Summary
-                ...
+## 📈 Important Trends
 
-                IMPORTANT:
-                - Use only information available in the uploaded dataset.
-                - Do not invent missing values.
-                - If a required column is unavailable, clearly state "Not available in the dataset."
-                - Distinguish calculated facts from interpretations.
-                - Do not claim that correlation proves causation.
-                - Clearly identify any assumptions used in calculations.
-                """
+- ...
+- ...
+- ...
 
-                response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
-                contents=[prompt, image]
-                )
+## 🔎 Key Business Insights
 
-                st.subheader("Analysis Result")
-                st.write(response.text)
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+
+## 💡 Recommendations
+
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+
+## 📋 Management Summary
+
+...
+
+IMPORTANT:
+- Use only information visible in the uploaded image.
+- Do not invent values.
+- If information is unavailable, say "Not available in the dataset."
+- Clearly distinguish facts from interpretations.
+- Do not claim correlation proves causation.
+"""
+
+                # -----------------------------
+                # API Payload
+                # -----------------------------
+                payload = {
+                    "contents": [
+                        {
+                            "parts": [
+                                {
+                                    "text": prompt
+                                },
+                                {
+                                    "inline_data": {
+                                        "mime_type": mime_type,
+                                        "data": image_base64
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+
+                # -----------------------------
+                # API Headers
+                # -----------------------------
+                headers = {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": GOOGLE_API_KEY
+                }
+
+                # -----------------------------
+                # API Request
+                # -----------------------------
+                try:
+
+                    response = requests.post(
+                        API_URL,
+                        headers=headers,
+                        json=payload,
+                        timeout=120
+                    )
+
+                    if response.status_code != 200:
+                        st.error(
+                            f"Gemini API Error: {response.status_code}"
+                        )
+                        st.code(response.text)
+                        st.stop()
+
+                    # -----------------------------
+                    # Parse Response
+                    # -----------------------------
+                    result = response.json()
+
+                    candidates = result.get("candidates", [])
+
+                    if not candidates:
+                        st.error("Gemini returned no result.")
+                        st.json(result)
+                        st.stop()
+
+                    parts = candidates[0].get(
+                        "content", {}
+                    ).get("parts", [])
+
+                    analysis = ""
+
+                    for part in parts:
+                        if "text" in part:
+                            analysis += part["text"]
+
+                    if not analysis:
+                        st.error("No analysis was returned.")
+                        st.json(result)
+                        st.stop()
+
+                    # -----------------------------
+                    # Display Result
+                    # -----------------------------
+                    st.subheader("📊 Analysis Result")
+                    st.markdown(analysis)
+
+                except requests.exceptions.Timeout:
+                    st.error(
+                        "The request timed out. Please try again."
+                    )
+
+                except requests.exceptions.RequestException as e:
+                    st.error(
+                        f"Connection error: {e}"
+                    )
+
+                except Exception as e:
+                    st.error(
+                        f"Unexpected error: {e}"
+                    )
+                               
